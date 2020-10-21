@@ -7,7 +7,7 @@ g.OnEvent("close","gui_close")
 g.Add("Edit","vMyEdit Multi w500 h500 ReadOnly","")
 g.Show()
 
-sListen := socket.new("listener")
+sListen := socket.new("listener",,"UDP")
 
 ; If on the same computer, you can't listen/send on the same port AND interface.
 ; Specify 0.0.0.0 for one interface (in this case for listening), and then specify
@@ -24,7 +24,7 @@ sleep 2000
 
 
 
-sSend := socket.New("sender")
+sSend := socket.New("sender",,"UDP")
 
 r := sSend.Connect(["127.0.0.1","1234"]) ; connect first ...
 AppendText(g["MyEdit"].hwnd,">> Connect 127.0.0.1:1234 / " sSend.socket "`r`n`r`n")
@@ -51,6 +51,8 @@ sSend.SendText(http) ; then send
 ;               create your own buffer and fill it before sending.
 
 AppendText(g["MyEdit"].hwnd,">> Send 127.0.0.1:1234 / " sSend.socket "`r`n`r`n")
+
+Sleep 10 ; a short sleep is needed for some reason when using UDP, increase this value if you don't see the data sent in the GUI
 
 sSend.Disconnect() ; disconnect client
 sListen.Disconnect() ; disconnect listener / server
