@@ -1,81 +1,123 @@
 #Include _socket.ahk
 
-Global g := ""
 
-g := Gui.New()
-g.OnEvent("close","gui_close")
+g := Gui()
+g.OnEvent("close",gui_close)
 g.Add("Edit","vMyEdit Multi w500 h500 ReadOnly","")
 g.Show()
 
-sListen := socket.new("listener",,"UDP")
+gui_close(*) {
+    ExitApp
+}
 
-; If on the same computer, you can't listen/send on the same port AND interface.
-; Specify 0.0.0.0 for one interface (in this case for listening), and then specify
-; 127.0.0.1 on the other interface for sending, otherwise you will get errors.
+print_gui(str) {
+    global g
+    AppendText(g["MyEdit"].hwnd,str)
+}
 
-result := sListen.Bind(["0.0.0.0","1234"]) ; bind first ...
-AppendText(g["MyEdit"].hwnd,">> Listen 0.0.0.0:1234 / " sListen.socket "`r`n`r`n")
+client_data := ""
 
-sListen.Listen() ; then listen
+F1::test_google()
+F2::test_server()
+F3::test_client()
+F4::{
+    client_data := ""
+    msgbox "cleared client data"
+}
 
-
-
-sleep 2000
-
-
-
-sSend := socket.New("sender",,"UDP")
-
-r := sSend.Connect(["127.0.0.1","1234"]) ; connect first ...
-AppendText(g["MyEdit"].hwnd,">> Connect 127.0.0.1:1234 / " sSend.socket "`r`n`r`n")
-
-http := "
-(
-GET /download/2.0/version.txt HTTP/1.1
-User-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)
-Host: www.this_is_a_test.com
-Accept-Language: en-us
-Accept-Encoding: gzip, deflate
-Connection: Keep-Alive
-... oh the possibilities ...
-
-
-)" ; double CRLF at the end of HTTP traffic
-
-Sleep 2000
-
-sSend.SendText(http) ; then send
-
-; obj.SendText() is useful for sending a plain text transmission.
-; If you need to send binary data, use obj.Send(buffer), where you
-;               create your own buffer and fill it before sending.
-
-AppendText(g["MyEdit"].hwnd,">> Send 127.0.0.1:1234 / " sSend.socket "`r`n`r`n")
-
-Sleep 10 ; a short sleep is needed for some reason when using UDP, increase this value if you don't see the data sent in the GUI
-
-sSend.Disconnect() ; disconnect client
-sListen.Disconnect() ; disconnect listener / server
-
-
-
-
-RecvCB(buffer,EventType,s) {    ; RecvCB() is the default callback for network events
-    ; buffer = buffer object, could be binary, could be text
-    ;          on "accept" or "close" event, buffer = ""
-    ; EventType = "read" / "accept" / "close"
-    ; s = socket object, access any method or property
+test_google() {
+    sock := winsock("client",cb,"IPV4")
     
-    data := s.RecvText(buffer)  ; buffer is a raw buffer, use .RecvText(buffer,Encoding:="UTF-8") to convert to text
+    sock.Connect("www.google.com",80) ; 127.0.0.1",27015 ; www.google.com",80
     
-    If (s.SockID = "listener") {
-        myText := "======== CALLBACK / " eventType " / listener`r`n" data "`r`n========================`r`n`r`n"
-        AppendText(g["MyEdit"].hwnd,myText)
-    } Else If (s.SockID = "sender") {
-        myText := "======== CALLBACK / " eventType " / senderr`n" data "`r`n========================`r`n`r`n"
-        AppendText(g["MyEdit"].hwnd,myText)
+    ; dbg(sock.name ": err: " sock.err " / LO: " sock.LastOp)
+    print_gui("Client connecting...`r`n`r`n")
+}
+
+test_server() { ; server
+    sock := winsock("server",cb,"IPV4")
+    sock.Bind("0.0.0.0",27015) ; "0.0.0.0",27015
+    
+    dbg(sock.name ": err: " sock.err " / LO: " sock.LastOp)
+    
+    sock.Listen()
+    dbg(sock.name ": err: " sock.err " / LO: " sock.LastOp)
+    
+    print_gui("Server listening...`r`n`r`n")
+}
+
+test_client() { ; client
+    sock := winsock("client",cb,"IPV4")
+    
+    sock.Connect("127.0.0.1",27015) ; 127.0.0.1",27015 ; www.google.com",80
+    
+    ; dbg(sock.name ": err: " sock.err " / LO: " sock.LastOp)
+    print_gui("Client connecting...`r`n`r`n")
+}
+
+cb(sock, event, err) {
+    global client_data
+    
+    if (sock.name = "client") {
+    
+        if (event = "close") {
+            ; dbg("event: " sock.name " / " event ": err: " sock.err)
+            msgbox client_data
+            A_Clipboard := client_data
+            client_data := ""
+            sock.close()
+            
+        } else if (event = "connect") { ; connection complete
+
+        } else if (event = "write") { ; client ready to send/write
+            get_req := "GET / HTTP/1.1`r`n"
+                     . "Host: www.google.com`r`n`r`n"
+
+            strbuf := Buffer(StrPut(get_req,"UTF-8"),0)
+            StrPut(get_req,strbuf,"UTF-8")
+            
+            sock.Send(strbuf)
+            
+            print_gui("Client sends to server:`r`n`r`n"
+                    . "======================`r`n`r`n"
+                    . get_req
+                    . "======================`r`n`r`n")
+
+        } else if (event = "read") { ; there is data to be read
+            buf := sock.Recv()
+            client_data .= StrGet(buf,"UTF-8")
+        }
+        
+        
+        
+    } else if (sock.name = "server") || instr(sock.name,"serving-") {
+    
+        if (event = "accept") {
+            sock.Accept(&addr) ; pass &addr param to extract addr of connected machine
+               
+            print_gui("Server processes client connection:`r`n`r`n"
+                    . "address: " sock.AddrToStr(addr) 
+                    . "`r`n`r`n======================`r`n`r`n" )
+            
+        } else if (event = "close") {
+            
+            
+        } else if (event = "read") {
+            buf := sock.Recv()
+            print_gui("Server recieved from client:`r`n`r`n"
+                    . "======================`r`n`r`n"
+                    . strget(buf,"UTF-8")
+                    . "======================`r`n`r`n")
+        }
+        
     }
 }
+        
+
+
+; ==========================================================
+; support funcs
+; ==========================================================
 
 AppendText(EditHwnd, sInput, loc := "bottom") { ; Posted by TheGood: https://autohotkey.com/board/topic/52441-append-text-to-an-edit-control/#entry328342
     insertPos := (loc="bottom") ? SendMessage(0x000E, 0, 0,, "ahk_id " EditHwnd) : 0    ; WM_GETTEXTLENGTH
@@ -83,6 +125,7 @@ AppendText(EditHwnd, sInput, loc := "bottom") { ; Posted by TheGood: https://aut
     r2 := SendMessage(0x00C2, False, StrPtr(sInput),, "ahk_id " EditHwnd)               ; EM_REPLACESEL - insert text at cursor
 }
 
-gui_close(*) {
-    ExitApp
+dbg(_in) { ; AHK v2
+    Loop Parse _in, "`n", "`r"
+        OutputDebug "AHK: " A_LoopField
 }
