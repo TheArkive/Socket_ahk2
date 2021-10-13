@@ -6,7 +6,7 @@ Please read the comments in both files detailed help.
 
 Updated for v2.beta-1
 
-Example works on the same machine, or across 2 machines.
+Example is designed to work on the same machine, but IP addr:port can be modified as desired.
 
 In the example:
 * Press F1 to connect to www.google.com:80
