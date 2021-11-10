@@ -220,7 +220,7 @@ class winsock {
         return retCode
     }
     
-    Accept(&addr:=0) { ; optional VarRef to capture the sockaddr struct of new connection
+    Accept(&addr:=0,&newsock:=0) { ; optional VarRef to capture the sockaddr struct of new connection
         retCode := 1
         buf := buffer(16,0)
         NumPut("UInt",16,sz := buffer(4,0))
