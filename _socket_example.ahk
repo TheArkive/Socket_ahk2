@@ -24,11 +24,20 @@ F4::{
     client_data := ""
     msgbox "cleared client data"
 }
+F5::test_error()
+
+test_error() {
+    sock := winsock("client-err",cb,"IPV4")
+    
+    ; sock.Connect("www.google.com",80) ; 127.0.0.1",27015 ; www.google.com",80
+    result := sock.Connect("localhost",5678) ; error is returned in callback
+}
 
 test_google() {
     sock := winsock("client",cb,"IPV4")
     
-    sock.Connect("www.google.com",80) ; 127.0.0.1",27015 ; www.google.com",80
+    ; sock.Connect("www.google.com",80) ; 127.0.0.1",27015 ; www.google.com",80
+    sock.Connect("www.autohotkey.com",80) ; www.autohotkey.com/download/2.0/
     
     ; dbg(sock.name ": err: " sock.err " / LO: " sock.LastOp)
     print_gui("Client connecting...`r`n`r`n")
@@ -61,18 +70,18 @@ cb(sock, event, err) {
     if (sock.name = "client") {
     
         if (event = "close") {
-            ; dbg("event: " sock.name " / " event ": err: " sock.err)
             msgbox client_data
             A_Clipboard := client_data
             client_data := ""
             sock.close()
             
         } else if (event = "connect") { ; connection complete
-
+            ; nothing for now
+            
         } else if (event = "write") { ; client ready to send/write
             get_req := "GET / HTTP/1.1`r`n"
                      . "Host: www.google.com`r`n`r`n"
-
+            
             strbuf := Buffer(StrPut(get_req,"UTF-8"),0)
             StrPut(get_req,strbuf,"UTF-8")
             
@@ -110,7 +119,16 @@ cb(sock, event, err) {
                     . "======================`r`n`r`n")
         }
         
+    } else if (sock.name = "client-err") {
+        
+        if (event = "connect")
+            msgbox sock.name ": " event ": err: " err 
+        
     }
+    
+    
+    dbg(sock.name ": " event ": err: " err) ; to make it easier to see all the events
+    
 }
         
 

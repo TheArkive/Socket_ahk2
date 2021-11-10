@@ -157,9 +157,9 @@ class winsock {
                     , 11030:"WSA_QOS_ESHAPERATEOBJ"
                     , 11031:"WSA_QOS_RESERVED_PETYPE"}
     
-    Static WM_SOCKET(sockDesc, lParam, msg, hwnd) { 
-        event_cd := (lParam << 16 >> 16)
-        errCode  := (lParam >> 16)
+    Static WM_SOCKET(sockDesc, lParam, msg, hwnd) { ; socket monitor
+        event_cd := lParam & 0xFFFF
+        errCode  := (lParam >> 16) & 0xFFFF
         event    := (winsock.events.HasProp(event_cd) ? winsock.events.%event_cd% : event_cd)
         socket   := winsock.sockets[String(sockDesc)]
         cb := socket.cb
