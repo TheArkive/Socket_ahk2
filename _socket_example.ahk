@@ -1,10 +1,14 @@
 #Include _socket.ahk
 
+#Requires AutoHotkey v2.0-beta ; 32-bit
+
 
 g := Gui()
 g.OnEvent("close",gui_close)
+g.OnEvent("escape",gui_close)
 g.Add("Edit","vMyEdit Multi w500 h500 ReadOnly","")
 g.Show()
+
 
 gui_close(*) {
     ExitApp
@@ -20,11 +24,15 @@ client_data := ""
 F1::test_google()
 F2::test_server()
 F3::test_client()
-F4::{
+F4::{ ; clear log
     client_data := ""
-    msgbox "cleared client data"
+    g["MyEdit"].Value := ""
 }
 F5::test_error()
+
+F6::test_send()
+
+F7::test_google_blocking()
 
 test_error() {
     sock := winsock("client-err",cb,"IPV4")
@@ -34,23 +42,19 @@ test_error() {
 }
 
 test_google() {
-    sock := winsock("client",cb,"IPV4")
+    sock := winsock("client",cb,"IPV6")
     
-    ; sock.Connect("www.google.com",80) ; 127.0.0.1",27015 ; www.google.com",80
-    sock.Connect("www.autohotkey.com",80) ; www.autohotkey.com/download/2.0/
+    sock.Connect("www.google.com",80) ; 127.0.0.1",27015 ; www.google.com",80
+    ; sock.Connect("www.autohotkey.com",80) ; www.autohotkey.com/download/2.0/
     
-    ; dbg(sock.name ": err: " sock.err " / LO: " sock.LastOp)
     print_gui("Client connecting...`r`n`r`n")
 }
 
-test_server() { ; server
+test_server() { ; server - uses async to accept sockets
     sock := winsock("server",cb,"IPV4")
     sock.Bind("0.0.0.0",27015) ; "0.0.0.0",27015
     
-    dbg(sock.name ": err: " sock.err " / LO: " sock.LastOp)
-    
     sock.Listen()
-    dbg(sock.name ": err: " sock.err " / LO: " sock.LastOp)
     
     print_gui("Server listening...`r`n`r`n")
 }
@@ -60,23 +64,77 @@ test_client() { ; client
     
     sock.Connect("127.0.0.1",27015) ; 127.0.0.1",27015 ; www.google.com",80
     
-    ; dbg(sock.name ": err: " sock.err " / LO: " sock.LastOp)
     print_gui("Client connecting...`r`n`r`n")
+}
+
+test_google_blocking() { ; this uses no async at all
+    sock := winsock("client",cb,"IPV6")
+    
+    domain := "www.autohotkey.com" ; www.google.com / www.autohotkey.com
+    port := 443 ; 443 / 80
+    
+    If !(r1 := sock.Connect(domain,port,true)) { ; www.google.com
+        msgbox "Could not connect: " sock.err
+        return
+    }
+    
+    get_req := "GET / HTTP/1.1`r`n"
+             . "Host: " domain "`r`n`r`n"
+    
+    strbuf := Buffer(StrPut(get_req,"UTF-8"),0)
+    StrPut(get_req,strbuf,"UTF-8")
+    
+    If !(r2 := sock.Send(strbuf)) {
+        Msgbox "Send failed."
+        return
+    }
+    
+    While !(buf:=sock.Recv()).size ; wait for data
+        Sleep 10
+    
+    result := ""
+    while buf.size {
+        result .= StrGet(buf,"UTF-8") ; collect data
+        buf:=sock.Recv()
+    }
+    
+    sock.Close()
+    
+    A_Clipboard := result
+    msgbox "Done.  Check clipboard."
+}
+
+test_send() { ; the connecting client doesn't use async
+    sock := winsock("client", cb, "IPV4")
+    If !(r := sock.Connect("127.0.0.1", 27015, true)) { ; connect as blocking, setting param #3 to TRUE
+        msgbox "Could not connect."
+        return ; handle a failed connect properly
+    }
+    
+    msg := "abc"
+    strbuf := Buffer(StrLen(msg) + 1) ; for UTF-8, take strLen() + 1 as the buffer size
+    StrPut(msg, strbuf, "UTF-8")
+    
+    r := sock.Send(strbuf) ; check send result if necessary
+    
+    sock.Close()
 }
 
 cb(sock, event, err) {
     global client_data
     
+    dbg("sock.name: " sock.name " / event: " event " / err: " err " ===========================")
+    
     if (sock.name = "client") {
     
         if (event = "close") {
-            msgbox client_data
+            msgbox "Address: " sock.addr "`n" "Port: " sock.port "`n`n" client_data
             A_Clipboard := client_data
             client_data := ""
             sock.close()
             
-        } else if (event = "connect") { ; connection complete
-            ; nothing for now
+        } else if (event = "connect") { ; connection complete, if (err = 0) then it is a success
+            print_gui("Client...`r`nConnect Addr: " sock.addr "`r`nConnect Port: " sock.port "`r`n`r`n") ; this does not check for failure
             
         } else if (event = "write") { ; client ready to send/write
             get_req := "GET / HTTP/1.1`r`n"
@@ -87,9 +145,9 @@ cb(sock, event, err) {
             
             sock.Send(strbuf)
             
-            print_gui("Client sends to server:`r`n`r`n"
-                    . "======================`r`n`r`n"
-                    . get_req
+            print_gui("Client sends to server:`r`n"
+                    . "======================`r`n"
+                    . Trim(get_req,"`r`n") "`r`n"
                     . "======================`r`n`r`n")
 
         } else if (event = "read") { ; there is data to be read
@@ -102,20 +160,26 @@ cb(sock, event, err) {
     } else if (sock.name = "server") || instr(sock.name,"serving-") {
     
         if (event = "accept") {
-            sock.Accept(&addr) ; pass &addr param to extract addr of connected machine
+            sock.Accept(&addr,&newsock) ; pass &addr param to extract addr of connected machine
                
-            print_gui("Server processes client connection:`r`n`r`n"
-                    . "address: " sock.AddrToStr(addr) 
-                    . "`r`n`r`n======================`r`n`r`n" )
+            print_gui("======================`r`n"
+                    . "Server processes client connection:`r`n"
+                    . "address: " newsock.addr "`r`n"
+                    . "======================`r`n`r`n" )
             
         } else if (event = "close") {
             
             
         } else if (event = "read") {
-            buf := sock.Recv()
-            print_gui("Server recieved from client:`r`n`r`n"
-                    . "======================`r`n`r`n"
-                    . strget(buf,"UTF-8")
+            
+            If !(buf := sock.Recv()).size ; get buffer, check size, return on zero-size buffer
+                return
+            
+            dbg("buf size: " buf.size)
+            
+            print_gui("======================`r`n"
+                    . "Server recieved from client:`r`n"
+                    . Trim(strget(buf,"UTF-8"),"`r`n") "`r`n"
                     . "======================`r`n`r`n")
         }
         
@@ -126,9 +190,7 @@ cb(sock, event, err) {
         
     }
     
-    
-    dbg(sock.name ": " event ": err: " err) ; to make it easier to see all the events
-    
+    ; dbg(sock.name ": " event ": err: " err) ; to make it easier to see all the events
 }
         
 
