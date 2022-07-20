@@ -111,8 +111,9 @@ test_send() { ; the connecting client doesn't use async
         return ; handle a failed connect properly
     }
     
-    msg := "abc"
-    strbuf := Buffer(StrLen(msg) + 1) ; for UTF-8, take strLen() + 1 as the buffer size
+    msg := "mir ist heiß"
+    size := StrPut(msg,"UTF-8")
+    strbuf := Buffer(size,0) ; for UTF-8, take strLen() + 1 as the buffer size
     StrPut(msg, strbuf, "UTF-8")
     
     r := sock.Send(strbuf) ; check send result if necessary
