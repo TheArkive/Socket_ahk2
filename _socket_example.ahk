@@ -111,9 +111,8 @@ test_send() { ; the connecting client doesn't use async
         return ; handle a failed connect properly
     }
     
-    msg := "mir ist heiß"
-    size := StrPut(msg,"UTF-8")
-    strbuf := Buffer(size,0) ; for UTF-8, take strLen() + 1 as the buffer size
+    msg := "abc"
+    strbuf := Buffer(StrLen(msg) + 1) ; for UTF-8, take strLen() + 1 as the buffer size
     StrPut(msg, strbuf, "UTF-8")
     
     r := sock.Send(strbuf) ; check send result if necessary
@@ -184,9 +183,9 @@ cb(sock, event, err) {
                     . "======================`r`n`r`n")
         }
         
-    } else if (sock.name = "client-err") {
+    } else if (sock.name = "client-err") { ; this is how you catch an error with async / non-blocking
         
-        if (event = "connect")
+        if (event = "connect") && err
             msgbox sock.name ": " event ": err: " err 
         
     }
