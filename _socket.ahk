@@ -361,6 +361,10 @@ class winsock {
             
             (buf) ? (fam := _f2.%NumGet(buf,0,"UShort")%) : NumPut("UShort",_f.%fam%,this.Ptr) ; init family, or get fam name
             
+            ; off := {family: {off:0,type:"UShort"},address: {off:_fo.%family% , len:_fL.%family%}
+                   ; ,port:   {off:2,type:"UShort"},flowinfo:{off:4,type:"UInt"}
+                                                 ; ,scopeid: {off:24,type:"UInt"}}
+            
             off := {family: {off:0,type:"UShort"},flowinfo:{off:4 ,type:"UInt"}, address:{off:_fo.%fam% , len:_fL.%fam%}
                    ,  port: {off:2,type:"UShort"}, scopeid:{off:24,type:"UInt"}}
             
